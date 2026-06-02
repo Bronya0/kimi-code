@@ -85,13 +85,16 @@ OAuth 流程默认连接 Kimi 官方的认证与托管端点，下列变量可�
 | `KIMI_MODEL_DEFAULT_THINKING` | 否 | 新会话的默认 Thinking 开关 | 未设时跟随全局默认（Thinking 开启） |
 | `KIMI_MODEL_THINKING_MODE` | 否 | Thinking 触发策略，可选 `auto`/`on`/`off` | — |
 | `KIMI_MODEL_THINKING_EFFORT` | 否 | Thinking 强度（如 `low`/`medium`/`high`/`xhigh`/`max`；实际可用等级由供应商决定） | — |
+| `KIMI_MODEL_ADAPTIVE_THINKING` | 否 | 强制开启或关闭 adaptive thinking（`thinking: { type: 'adaptive' }`），覆盖按模型名推断版本的逻辑（仅 `anthropic`） | 按模型名推断（Claude ≥ 4.6 使用 adaptive） |
 
 合成出的条目使用保留键 `__kimi_env__`（供应商）和 `__kimi_env_model__`（模型别名）。当设置了 `KIMI_MODEL_NAME` 但缺少必填变量或变量取值非法时，启动会以清晰的错误信息失败。
 
+当某个自定义命名的 Anthropic 兼容端点背后的模型支持 adaptive thinking、但其模型名无法解析出可识别的 Claude 版本（否则自动推断会回退到 budget 模式）时，设置 `KIMI_MODEL_ADAPTIVE_THINKING=true`。若对**不支持** adaptive thinking 的端点强制开启，API 会直接拒绝请求；因此在不确定背后模型是否支持时，请保持该变量为未设置。
+
 ```sh
 export KIMI_MODEL_NAME="kimi-for-coding"
-export KIMI_MODEL_BASE_URL="https://api-staff.msh.team/v1"
-export KIMI_MODEL_API_KEY="$MOONSHOT_STAFF_KEY"
+export KIMI_MODEL_BASE_URL="https://api.example.com/v1"
+export KIMI_MODEL_API_KEY="YOUR_API_KEY"
 export KIMI_MODEL_MAX_CONTEXT_SIZE="262144"
 export KIMI_MODEL_CAPABILITIES="image_in,thinking"
 kimi
@@ -115,6 +118,20 @@ export KIMI_DISABLE_TELEMETRY="1"
 ```
 
 `KIMI_CODE_BACKGROUND_KEEP_ALIVE_ON_EXIT` 的优先级高于 `config.toml`。例如临时运行 `KIMI_CODE_BACKGROUND_KEEP_ALIVE_ON_EXIT=0 kimi -p "..."` 时，即使配置文件里写了 `keep_alive_on_exit = true`，本次进程退出前也会请求停止后台任务。
+
+## 实验功能 flag
+
+实验功能通过 `KIMI_CODE_EXPERIMENTAL_*` 环境变量控制，并且**默认关闭**。每个 flag 都接受真值（`1`、`true`、`yes`、`on`）；主开关 `KIMI_CODE_EXPERIMENTAL_FLAG` 会强制启用所有实验功能。这些 flag 不会从 `config.toml` 读取。
+
+| 环境变量 | 用途 | 默认值 |
+| --- | --- | --- |
+| `KIMI_CODE_EXPERIMENTAL_GOAL_COMMAND` | 启用 `/goal` 命令和自主 goal 模式。Kimi Code 会围绕指定目标自动续跑多个轮次，直到目标完成、暂停或进入 blocked 状态。停止条件应写在目标本身里，例如「如果仍被阻塞，20 轮后停止」。详见 [斜杠命令：自主 goal](../reference/slash-commands.md#自主-goal)。 | `false`（关闭） |
+| `KIMI_CODE_EXPERIMENTAL_FLAG` | 主开关：强制启用所有实验功能 | `false`（关闭） |
+
+```sh
+# 单次启动时试用 goal 模式
+KIMI_CODE_EXPERIMENTAL_GOAL_COMMAND=1 kimi
+```
 
 ## 诊断日志
 

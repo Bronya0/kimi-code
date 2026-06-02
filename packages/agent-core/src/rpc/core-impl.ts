@@ -48,12 +48,15 @@ import type {
   CloseSessionPayload,
   CoreAPI,
   CoreInfo,
+  CreateGoalPayload,
   CreateSessionPayload,
   EmptyPayload,
+  GoalControlPayload,
+  GoalSnapshot,
+  GoalToolResult,
   ExportSessionPayload,
   ExportSessionResult,
   ForkSessionPayload,
-  GetBackgroundOutputPathPayload,
   GetBackgroundOutputPayload,
   GetBackgroundPayload,
   GetKimiConfigPayload,
@@ -84,6 +87,7 @@ import type {
   SkillSummary,
   SteerPayload,
   StopBackgroundPayload,
+  UndoHistoryPayload,
   UnregisterToolPayload,
   UpdateSessionMetadataPayload,
 } from './core-api';
@@ -109,6 +113,7 @@ export interface KimiCoreOptions {
   readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver | undefined;
   readonly skillDirs?: readonly string[];
   readonly telemetry?: TelemetryClient | undefined;
+  readonly appVersion?: string;
 }
 
 export class KimiCore implements PromisableMethods<CoreAPI> {
@@ -129,6 +134,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
   readonly plugins: PluginManager;
   private pluginsReady: Promise<void>;
   private pluginsLoadError: Error | undefined;
+  private readonly appVersion: string | undefined;
 
   constructor(
     protected readonly rpcClient: CoreRPCClient,
@@ -151,6 +157,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
     this.resolveOAuthTokenProvider = options.resolveOAuthTokenProvider;
     this.skillDirs = options.skillDirs ?? [];
     this.telemetry = options.telemetry ?? noopTelemetryClient;
+    this.appVersion = options.appVersion;
     ensureKimiHome(this.homeDir);
     this.config = loadRuntimeConfig(this.configPath);
     this.sessionStore = new SessionStore(this.homeDir);
@@ -209,6 +216,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
       mcpConfig,
       telemetry: withTelemetryContext(this.telemetry, { sessionId: summary.id }),
       pluginSessionStarts,
+      appVersion: this.appVersion,
     });
     try {
       session.metadata = {
@@ -296,6 +304,7 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
       telemetry: withTelemetryContext(this.telemetry, { sessionId: summary.id }),
       initializeMainAgent: false,
       pluginSessionStarts,
+      appVersion: this.appVersion,
     });
     let warning: string | undefined;
     try {
@@ -430,6 +439,10 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
     return this.sessionApi(sessionId).cancel(payload);
   }
 
+  undoHistory({ sessionId, ...payload }: SessionAgentPayload<UndoHistoryPayload>) {
+    return this.sessionApi(sessionId).undoHistory(payload);
+  }
+
   async setModel({
     sessionId,
     ...payload
@@ -501,13 +514,6 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
     return this.sessionApi(sessionId).getBackgroundOutput(payload);
   }
 
-  getBackgroundOutputPath({
-    sessionId,
-    ...payload
-  }: SessionAgentPayload<GetBackgroundOutputPathPayload>) {
-    return this.sessionApi(sessionId).getBackgroundOutputPath(payload);
-  }
-
   getContext({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
     return this.sessionApi(sessionId).getContext(payload);
   }
@@ -574,6 +580,38 @@ export class KimiCore implements PromisableMethods<CoreAPI> {
 
   generateAgentsMd({ sessionId, ...payload }: SessionScopedPayload<EmptyPayload>): Promise<void> {
     return this.sessionApi(sessionId).generateAgentsMd(payload);
+  }
+
+  createGoal({
+    sessionId,
+    ...payload
+  }: SessionScopedPayload<CreateGoalPayload>): Promise<GoalSnapshot> {
+    return Promise.resolve(this.sessionApi(sessionId).createGoal(payload));
+  }
+
+  getGoal({ sessionId, ...payload }: SessionScopedPayload<EmptyPayload>): GoalToolResult {
+    return this.sessionApi(sessionId).getGoal(payload);
+  }
+
+  pauseGoal({
+    sessionId,
+    ...payload
+  }: SessionScopedPayload<GoalControlPayload>): Promise<GoalSnapshot> {
+    return Promise.resolve(this.sessionApi(sessionId).pauseGoal(payload));
+  }
+
+  resumeGoal({
+    sessionId,
+    ...payload
+  }: SessionScopedPayload<GoalControlPayload>): Promise<GoalSnapshot> {
+    return Promise.resolve(this.sessionApi(sessionId).resumeGoal(payload));
+  }
+
+  cancelGoal({
+    sessionId,
+    ...payload
+  }: SessionScopedPayload<GoalControlPayload>): Promise<GoalSnapshot> {
+    return Promise.resolve(this.sessionApi(sessionId).cancelGoal(payload));
   }
 
   async installPlugin(payload: InstallPluginPayload): Promise<PluginSummary> {
